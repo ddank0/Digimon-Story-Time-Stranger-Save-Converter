@@ -14,10 +14,21 @@ const SWITCH_ZIP = process.env.DSTS_SWITCH_ZIP;
 // Zero the regions the conversion legitimately rewrites, so the rest can be compared.
 function masked(body) {
   const b = Buffer.from(body);
-  // The last 4 bytes of the PC struct have no Switch counterpart.
-  b.fill(0, sf.OUTFIT_STRUCT_START + 92, sf.OUTFIT_STRUCT_START + 96);
+  // The 4 bytes just past the end of the PC struct have no Switch counterpart.
+  b.fill(0, sf.OUTFIT_STRUCT_START + sf.OUTFIT_STRUCT_SIZE,
+    sf.OUTFIT_STRUCT_START + sf.OUTFIT_STRUCT_SIZE + 4);
   b.fill(0, sf.MODEL_DATA_START, sf.MODEL_DATA_START + sf.MODEL_DATA_SIZE);
   b.fill(0, sf.APPEARANCE_BLOCK_START, sf.APPEARANCE_BLOCK_START + sf.APPEARANCE_BLOCK_SIZE);
+  return b;
+}
+
+// Starting from the Switch layout there is one extra by-design loss: the 4-byte
+// gap that precedes the struct on Switch is overwritten when switch->pc shifts
+// the struct down onto it, so a switch->pc->switch roundtrip cannot bring it
+// back. Mask it rather than let it read as an unexplained failure.
+function maskedFromSwitch(body) {
+  const b = masked(body);
+  b.fill(0, sf.SWITCH_STRUCT_START - 4, sf.SWITCH_STRUCT_START);
   return b;
 }
 
@@ -60,7 +71,7 @@ test('real Switch backup: switch->pc->switch preserves the data', { skip: !SWITC
     const backBody = sf.decompressBody(back.subarray(sf.HEADER_SIZE));
     assert.deepStrictEqual(back.subarray(0, sf.HEADER_SIZE),
       swFile.subarray(0, sf.HEADER_SIZE), `${e.entryName}: header changed`);
-    assert.deepStrictEqual(masked(backBody), masked(origBody),
+    assert.deepStrictEqual(maskedFromSwitch(backBody), maskedFromSwitch(origBody),
       `${e.entryName}: body diverged outside the expected regions`);
   }
 });

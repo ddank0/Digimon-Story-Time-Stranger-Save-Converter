@@ -83,7 +83,14 @@ btnConvert.addEventListener('click', async () => {
   });
   
   if (result.success) {
-    statusMessage.innerHTML = `Conversion completed successfully! Processed ${result.processed} files.<br><br><span style="color: var(--success-color); font-size: 0.9em">${result.message || ''}</span>`;
+    statusMessage.textContent = `Conversion completed successfully! Processed ${result.processed} files.`;
+    if (result.message) {
+      const note = document.createElement('span');
+      note.textContent = result.message;
+      note.style.color = 'var(--success-color)';
+      note.style.fontSize = '0.9em';
+      statusMessage.append(document.createElement('br'), document.createElement('br'), note);
+    }
     statusMessage.classList.add('success');
   } else {
     statusMessage.textContent = 'Error: ' + result.error;

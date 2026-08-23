@@ -65,10 +65,8 @@ ipcMain.handle('convert', async (event, args) => {
 
   try {
     const files = fs.readdirSync(inputFolder);
-    // The game only uses slots 0000-0015.
-    const inSlotRange = (name, prefixLen) => parseInt(name.slice(prefixLen, prefixLen + 4), 10) <= 15;
-    const mainFiles = files.filter(f => /^\d{4}\.bin$/.test(f) && inSlotRange(f, 0));
-    const slotFiles = files.filter(f => /^slot_\d{4}\.bin$/.test(f) && inSlotRange(f, 5));
+    const mainFiles = files.filter(f => /^\d{4}\.bin$/.test(f));
+    const slotFiles = files.filter(f => /^slot_\d{4}\.bin$/.test(f));
 
     if (mainFiles.length === 0 && slotFiles.length === 0) {
       return { success: false, error: 'Could not find any .bin or slot_.bin files in the input folder.' };

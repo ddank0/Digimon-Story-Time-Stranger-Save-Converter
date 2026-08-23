@@ -48,6 +48,16 @@ test('decompressBody rejects a payload that does not expand to BODY_SIZE', () =>
   assert.throws(() => sf.decompressBody(Buffer.from(dst.buffer, 0, n)), /3097152/);
 });
 
+test('decompressBody accepts a payload padded past the end of the LZ4 block', () => {
+  // Real files can be padded out to a fixed size. lz4js keeps consuming the
+  // padding and reports more than BODY_SIZE written, but the body itself is
+  // intact, so this must not fail the conversion.
+  const body = Buffer.alloc(sf.BODY_SIZE);
+  for (let i = 0; i < body.length; i += 313) body[i] = (i * 7) & 0xff;
+  const padded = Buffer.concat([sf.compressBody(body), Buffer.alloc(64)]);
+  assert.deepStrictEqual(sf.decompressBody(padded), body);
+});
+
 test('validateSwitchHeader accepts a real header and rejects garbage', () => {
   assert.doesNotThrow(() => sf.validateSwitchHeader(makeSwitchHeader()));
   const bad = Buffer.alloc(sf.HEADER_SIZE);
@@ -65,8 +75,8 @@ function makeTestBody() {
   for (let i = 0; i < sf.OUTFIT_STRUCT_SIZE - 4; i++) {
     body[sf.OUTFIT_STRUCT_START + i] = (i % 250) + 1;
   }
-  // Layout marker (Switch 0x0FDC50 = PC struct+60): 1 in real saves.
-  body[sf.OUTFIT_STRUCT_START + 60] = 1;
+  // Layout marker, read at struct offset 60 of whichever layout the body is in.
+  body[sf.PC_STRUCT_START + sf.MARKER_STRUCT_OFFSET] = 1;
   // The variable gender field (PC 0x0FDC50 = Switch 0x0FDC54) is kept distinct
   // from the marker so any stray post-shift write-back is caught.
   body[sf.GENDER_OFFSET] = 0;
@@ -106,6 +116,34 @@ test('convertBody pc-to-switch: shifts the struct +4, zeroes gap and model regio
   assert.strictEqual(body[sf.BODY_SIZE - 4096], original[sf.BODY_SIZE - 4096]);
 });
 
+test('convertBody switch-to-pc: shifts the struct back and keeps the model regions', () => {
+  const original = makeTestBody();
+  const body = Buffer.from(original);
+  sf.convertBody(body, 'switch-to-pc');
+
+  // Going back to the PC layout must not discard model or appearance data:
+  // this direction worked byte-faithful before the layout fix.
+  assert.deepStrictEqual(
+    body.subarray(sf.MODEL_DATA_START, sf.MODEL_DATA_START + sf.MODEL_DATA_SIZE),
+    Buffer.alloc(sf.MODEL_DATA_SIZE, 0xee));
+  assert.deepStrictEqual(
+    body.subarray(sf.APPEARANCE_BLOCK_START, sf.APPEARANCE_BLOCK_START + sf.APPEARANCE_BLOCK_SIZE),
+    Buffer.alloc(sf.APPEARANCE_BLOCK_SIZE, 0xdd));
+  // The struct moved down by 4, and the 4 bytes it vacated are zeroed.
+  for (let i = 0; i < sf.OUTFIT_STRUCT_SIZE; i++) {
+    assert.strictEqual(body[sf.OUTFIT_STRUCT_START + i],
+      original[sf.OUTFIT_STRUCT_START + 4 + i], `struct byte ${i} was not shifted back`);
+  }
+  assert.deepStrictEqual(
+    body.subarray(sf.OUTFIT_STRUCT_START + sf.OUTFIT_STRUCT_SIZE,
+      sf.OUTFIT_STRUCT_START + sf.OUTFIT_STRUCT_SIZE + 4),
+    Buffer.alloc(4));
+});
+
+test('convertBody rejects an unknown direction', () => {
+  assert.throws(() => sf.convertBody(makeTestBody(), 'pc-to-pc'), /unknown direction/);
+});
+
 test('convertBody: pc->switch->pc roundtrip restores the body except the zeroed regions', () => {
   const original = makeTestBody();
   const body = Buffer.from(original);
@@ -120,7 +158,7 @@ test('convertBody: pc->switch->pc roundtrip restores the body except the zeroed 
 
 test('convertBody rejects an invalid layout marker', () => {
   const body = makeTestBody();
-  body[sf.OUTFIT_STRUCT_START + 60] = 65;
+  body[sf.PC_STRUCT_START + sf.MARKER_STRUCT_OFFSET] = 65;
   assert.throws(() => sf.convertBody(body, 'pc-to-switch'), /marker/);
 
   const body2 = makeTestBody();

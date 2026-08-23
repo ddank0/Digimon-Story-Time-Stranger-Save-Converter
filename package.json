@@ -10,12 +10,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/example/dsts-save-editor.git"
+    "url": "https://github.com/TyohDev/Digimon-Story-Time-Stranger-Save-Converter.git"
   },
   "build": {
     "appId": "com.dsts.saveeditor",
     "productName": "DSTS Save Converter",
     "publish": null,
+    "files": ["**/*", "!test/**"],
     "linux": {
       "target": ["AppImage"]
     },

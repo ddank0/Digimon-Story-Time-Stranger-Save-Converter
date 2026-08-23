@@ -1,5 +1,6 @@
-WIP
 # DSTS Save Converter
+
+> **Status**: WIP
 
 > **Note**: This is a "vibe coded" project, created dynamically through an AI pair programming session.
 
@@ -36,6 +37,17 @@ If you want to run or build the application from source, you will need to have [
 To start the app in development mode without building:
 ```bash
 npm start
+```
+
+### Running the Tests
+```bash
+npm test
+```
+
+Two of the tests exercise the conversion against real save data and are skipped
+unless you point them at your own files:
+```bash
+DSTS_PC_DIR=/path/to/pc/saves DSTS_SWITCH_ZIP=/path/to/jksv-backup.zip npm test
 ```
 
 ### Building Executables
